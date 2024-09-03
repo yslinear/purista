@@ -1,13 +1,13 @@
 {
   "name": "@purista/website",
-  "version": "1.9.1",
+  "version": "1.11.0",
   "private": true,
   "description": "PURISTA website source code based on vitepress",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "vitepress dev doc",
-    "build": "vitepress build doc",
+    "build:doc": "vitepress build doc",
     "preview": "vitepress preview doc"
   },
   "type": "module",

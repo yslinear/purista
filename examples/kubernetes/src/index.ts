@@ -44,13 +44,13 @@ const main = async () => {
   // set up the eventbridge and start the event bridge
   const eventBridge = new AmqpBridge({
     spanProcessor,
-    instanceId: process.env.HOSTNAME || getNewInstanceId(),
+    instanceId: process.env.HOSTNAME ?? getNewInstanceId(),
     url: process.env.AMQP_URL,
   })
   await eventBridge.start()
 
   // set up the service
-  const theService = theServiceV1Service.getInstance(eventBridge, {
+  const theService = await theServiceV1Service.getInstance(eventBridge, {
     spanProcessor,
     configStore,
     secretStore,

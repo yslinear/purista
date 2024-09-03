@@ -1,6 +1,6 @@
-import type { Infer, Schema } from '@decs/typeschema'
-import { validate } from '@decs/typeschema'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
+import type { Infer, Schema } from '@typeschema/main'
+import { validate } from '@typeschema/main'
 
 import { DefaultConfigStore } from '../../DefaultConfigStore/index.js'
 import { DefaultSecretStore } from '../../DefaultSecretStore/index.js'
@@ -23,7 +23,7 @@ import type { StateDeleteFunction, StateGetterFunction, StateSetterFunction } fr
 import type {
   Command,
   CommandDefinition,
-  CommandDefinitionList,
+  CommandDefinitionListResolved,
   CommandFunctionContext,
   ContextBase,
   CustomMessage,
@@ -38,7 +38,7 @@ import type {
   ServiceConstructorInput,
   Subscription,
   SubscriptionDefinition,
-  SubscriptionDefinitionList,
+  SubscriptionDefinitionListResolved,
   SubscriptionFunctionContext,
   TenantId,
   TraceId,
@@ -78,13 +78,15 @@ import { subscriptionTransformInput } from './subscriptionTransformInput.impl.js
  *
  * @group Service
  */
-export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass implements ServiceClass<ConfigType> {
+export class Service<ConfigType = unknown> extends ServiceBaseClass implements ServiceClass<ConfigType> {
   protected subscriptions = new Map<string, SubscriptionDefinition>()
   protected commands = new Map<string, CommandDefinition>()
 
-  public commandDefinitionList: CommandDefinitionList<any>
-  public subscriptionDefinitionList: SubscriptionDefinitionList<any>
+  public commandDefinitionList: CommandDefinitionListResolved<any>
+  public subscriptionDefinitionList: SubscriptionDefinitionListResolved<any>
   public config: ConfigType
+
+  public isStarted: boolean = false
 
   constructor(config: ServiceConstructorInput<ConfigType>) {
     super({
@@ -92,9 +94,9 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
       info: config.info,
       eventBridge: config.eventBridge,
       spanProcessor: config.spanProcessor,
-      secretStore: config.secretStore || new DefaultSecretStore(),
-      configStore: config.configStore || new DefaultConfigStore(),
-      stateStore: config.stateStore || new DefaultStateStore(),
+      secretStore: config.secretStore ?? new DefaultSecretStore(),
+      configStore: config.configStore ?? new DefaultConfigStore(),
+      stateStore: config.stateStore ?? new DefaultStateStore(),
       configSchema: config.configSchema,
     })
 
@@ -111,6 +113,9 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
    * It connects to the event bridge and subscribes to the topics that are in the subscription list.
    */
   async start() {
+    if (this.isStarted) {
+      throw new UnhandledError(StatusCode.InternalServerError, 'Service already started')
+    }
     return this.startActiveSpan('purista.start', {}, undefined, async (span) => {
       try {
         if (this.configSchema) {
@@ -125,6 +130,7 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
             throw err
           }
         }
+
         await this.initializeEventbridgeConnect(this.commandDefinitionList, this.subscriptionDefinitionList)
         await this.sendServiceInfo(EBMessageType.InfoServiceReady)
         this.logger.info(
@@ -137,6 +143,8 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
         this.emit(ServiceEventsNames.ServiceUnavailable, err)
         throw err
       }
+
+      this.isStarted = true
     })
   }
 
@@ -144,11 +152,11 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
    * Connect service to event bridge to receive commands and command responses
    */
   protected async initializeEventbridgeConnect(
-    commandDefinitionList: CommandDefinitionList<any>,
-    subscriptions: SubscriptionDefinition[],
+    commandDefinitionList: CommandDefinitionListResolved<any>,
+    subscriptions: SubscriptionDefinitionListResolved<any>,
   ) {
     return this.startActiveSpan('purista.initializeEventbridgeConnect', {}, undefined, async (span) => {
-      const isEventBridgeReady = this.eventBridge.isHealthy()
+      const isEventBridgeReady = await this.eventBridge.isHealthy()
 
       if (!isEventBridgeReady) {
         const err = new UnhandledError(StatusCode.ServiceUnavailable, 'eventbridge not healthy')
@@ -177,14 +185,14 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
    * @param infoType type of info message
    * @param target function name is need in messages like InfoServiceFunctionAdded
    */
-  async sendServiceInfo(infoType: InfoMessageType, target?: string, payload?: Record<string, unknown>) {
+  protected async sendServiceInfo(infoType: InfoMessageType, target?: string, payload?: Record<string, unknown>) {
     return this.startActiveSpan('purista.sendServiceInfo', {}, undefined, async (span) => {
       const info = createInfoMessage(
         infoType,
         {
           serviceName: this.info.serviceName,
           serviceVersion: this.info.serviceVersion,
-          serviceTarget: target || '',
+          serviceTarget: target ?? '',
           instanceId: this.eventBridge.instanceId,
         },
         { payload },
@@ -591,7 +599,7 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
 
     const context = deserializeOtp(this.logger, message.otp)
 
-    return this.startActiveSpan(command?.commandName || 'purista.executeCommand', {}, context, async (span) => {
+    return this.startActiveSpan(command?.commandName ?? 'purista.executeCommand', {}, context, async (span) => {
       const traceId = message.traceId
 
       const logger = this.logger.getChildLogger({
@@ -662,13 +670,13 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
           },
         )
 
-        if (Object.keys(command.hooks.afterGuard || {}).length) {
+        if (Object.keys(command.hooks.afterGuard ?? {}).length) {
           const guards = command.hooks.afterGuard
 
           await this.startActiveSpan(command.commandName + '.afterGuardHooks', {}, undefined, async () => {
             const guardsPromises: Promise<void>[] = []
 
-            for (const [name, hook] of Object.entries(guards || {})) {
+            for (const [name, hook] of Object.entries(guards ?? {})) {
               const context: CommandFunctionContext = {
                 message,
                 emit: this.getEmitFunction(
@@ -776,7 +784,7 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
     })
   }
 
-  async registerCommand(commandDefinition: CommandDefinition): Promise<void> {
+  public async registerCommand(commandDefinition: CommandDefinition): Promise<void> {
     return this.startActiveSpan('purista.registerCommand', {}, undefined, async (span) => {
       this.logger.debug({ ...this.serviceInfo, ...span.spanContext() }, 'register command')
 
@@ -885,13 +893,13 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
             },
           )
 
-          if (Object.keys(subscription.hooks.afterGuard || {}).length) {
+          if (Object.keys(subscription.hooks.afterGuard ?? {}).length) {
             const guards = subscription.hooks.afterGuard
 
             await this.startActiveSpan(subscription.subscriptionName + '.afterGuardHooks', {}, undefined, async () => {
               const guardsPromises: Promise<void>[] = []
 
-              for (const [name, hook] of Object.entries(guards || {})) {
+              for (const [name, hook] of Object.entries(guards ?? {})) {
                 const context: SubscriptionFunctionContext = {
                   message,
                   emit: this.getEmitFunction(
@@ -968,8 +976,8 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
                 subSpan.addEvent(subscription.emitEventName as string)
                 const resultMsg: Omit<CustomMessage, 'id' | 'timestamp'> = {
                   messageType: EBMessageType.CustomMessage,
-                  contentType: subscription.metadata.expose.contentTypeResponse || 'application/json',
-                  contentEncoding: subscription.metadata.expose.contentEncodingResponse || 'utf-8',
+                  contentType: subscription.metadata.expose.contentTypeResponse ?? 'application/json',
+                  contentEncoding: subscription.metadata.expose.contentEncodingResponse ?? 'utf-8',
                   sender: {
                     serviceName: this.serviceInfo.serviceName,
                     serviceVersion: this.serviceInfo.serviceVersion,
@@ -1009,7 +1017,7 @@ export class Service<ConfigType = unknown | undefined> extends ServiceBaseClass 
     )
   }
 
-  async registerSubscription(subscriptionDefinition: SubscriptionDefinition): Promise<void> {
+  public async registerSubscription(subscriptionDefinition: SubscriptionDefinition): Promise<void> {
     return this.startActiveSpan('purista.registerSubscription', {}, undefined, async (span) => {
       this.logger.debug({ ...this.serviceInfo, ...span.spanContext() }, 'register subscription')
 

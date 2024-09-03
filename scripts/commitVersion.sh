@@ -1,8 +1,6 @@
 NODE_VERSION=$(node -p -e "require('./package.json').version")
 echo $NODE_VERSION
 
-git-cliff --tag v$NODE_VERSION > CHANGELOG.md
-
 CONTENT="export const puristaVersion = '$NODE_VERSION'"
 
 for dir in ./packages/*/     # list directories in the form "/tmp/dirname/"
@@ -12,6 +10,6 @@ do
     echo $CONTENT > ./packages/${dir##*/}/src/version.ts
 done
 
-git add .
-git commit -am "chore: bump versions to $NODE_VERSION" -S
-git tag -a v$NODE_VERSION -m "v$NODE_VERSION"
+#git add .
+#git commit -am "chore: bump versions to $NODE_VERSION" -S
+#git tag -a v$NODE_VERSION -m "v$NODE_VERSION"

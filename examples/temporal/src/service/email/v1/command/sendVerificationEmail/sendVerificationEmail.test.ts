@@ -16,17 +16,21 @@ describe('service Email version 1 - command sendVerificationEmail', () => {
   })
 
   test('does not throw', async () => {
-    const service = emailV1Service.getInstance(getEventBridgeMock(sandbox).mock, {
+    const service = await emailV1Service.getInstance(getEventBridgeMock(sandbox).mock, {
       logger: getLoggerMock(sandbox).mock,
     })
 
     const sendVerificationEmail = safeBind(sendVerificationEmailCommandBuilder.getCommandFunction(), service)
 
-    const payload: EmailV1SendVerificationEmailInputPayload = undefined
+    const payload: EmailV1SendVerificationEmailInputPayload = {
+      email: 'john@example.com',
+    }
 
     const parameter: EmailV1SendVerificationEmailInputParameter = {}
 
     const context = sendVerificationEmailCommandBuilder.getCommandContextMock(payload, parameter, sandbox)
+
+    context.stubs.setState.resolves()
 
     const result = await sendVerificationEmail(context.mock, payload, parameter)
 

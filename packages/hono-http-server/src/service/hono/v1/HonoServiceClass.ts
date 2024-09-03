@@ -32,10 +32,10 @@ import type { HonoServiceV1Config } from './honoServiceConfig.js'
  * await eventBridge.start()
  *
  * // add your service
- * const pingService = pingV1Service.getInstance(eventBridge)
+ * const pingService = await pingV1Service.getInstance(eventBridge)
  * await pingService.start()
  *
- * const honoService = honoV1Service.getInstance(eventBridge, {
+ * const honoService = await honoV1Service.getInstance(eventBridge, {
  *   serviceConfig: {
  *     services: [pingService]
  *   }
@@ -301,11 +301,11 @@ export class HonoServiceClass<
     const method = expose.http.method.toLowerCase() as 'put' | 'post' | 'patch' | 'get' | 'delete'
     const path = posix.join(this.config.apiMountPath, `v${service.serviceVersion}`, expose.http.path)
 
-    const requestContentType = expose.contentTypeRequest || 'application/json'
-    const requestEncodingType = expose.contentEncodingRequest || 'utf-8'
+    const requestContentType = expose.contentTypeRequest ?? 'application/json'
+    const requestEncodingType = expose.contentEncodingRequest ?? 'utf-8'
 
-    const responseContentType = expose.contentTypeResponse || 'application/json'
-    const responseEncodingType = expose.contentEncodingResponse || 'utf-8'
+    const responseContentType = expose.contentTypeResponse ?? 'application/json'
+    const responseEncodingType = expose.contentEncodingResponse ?? 'utf-8'
 
     const protectHandler = safeBind(this.config.protectHandler, this)
 
@@ -367,8 +367,8 @@ export class HonoServiceClass<
               },
               principalId: c.get('principalId'),
               tenantId: c.get('tenantId'),
-              contentType: expose.contentTypeRequest || 'application/json',
-              contentEncoding: expose.contentEncodingRequest || 'utf-8',
+              contentType: expose.contentTypeRequest ?? 'application/json',
+              contentEncoding: expose.contentEncodingRequest ?? 'utf-8',
             },
             `${method}:${path}`,
           )

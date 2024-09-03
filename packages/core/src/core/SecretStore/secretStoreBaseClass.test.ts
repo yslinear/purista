@@ -1,10 +1,27 @@
 import type { SinonSandbox } from 'sinon'
 import { createSandbox } from 'sinon'
 
+import type { ObjectWithKeysFromStringArray } from '../../helper/index.js'
 import { getLoggerMock } from '../../mocks/index.js'
 import { UnhandledError } from '../Error/index.js'
 import { StatusCode } from '../types/index.js'
 import { SecretStoreBaseClass } from './SecretStoreBaseClass.impl.js'
+
+class TestClass extends SecretStoreBaseClass {
+  protected getSecretImpl<SecretNames extends string[]>(
+    ..._secretNames: SecretNames
+  ): Promise<ObjectWithKeysFromStringArray<SecretNames, string | undefined>> {
+    throw new Error('Not implemented')
+  }
+
+  protected setSecretImpl(_secretName: string, _secretValue: string): Promise<void> {
+    throw new Error('Not implemented')
+  }
+
+  protected removeSecretImpl(_secretName: string): Promise<void> {
+    throw new Error('Not implemented')
+  }
+}
 
 describe('SecretStoreBaseClass', () => {
   let sandbox: SinonSandbox
@@ -14,7 +31,7 @@ describe('SecretStoreBaseClass', () => {
   beforeEach(() => {
     sandbox = createSandbox()
     logger = getLoggerMock(sandbox)
-    secretStore = new SecretStoreBaseClass('test', { logger: logger.mock })
+    secretStore = new TestClass('test', { logger: logger.mock })
   })
 
   afterEach(() => {
@@ -35,11 +52,7 @@ describe('SecretStoreBaseClass', () => {
     it('should throw an UnhandledError if enableGet is true but method is not implemented', async () => {
       sandbox.stub(secretStore.config, 'enableGet').value(true)
 
-      await expect(secretStore.getSecret('test')).rejects.toEqual(
-        new UnhandledError(StatusCode.NotImplemented, 'get secret is not implemented in secret store'),
-      )
-
-      sandbox.assert.calledOnce(logger.stubs.error)
+      await expect(secretStore.getSecret('test')).rejects.toEqual(new Error('Not implemented'))
     })
   })
 
@@ -58,11 +71,7 @@ describe('SecretStoreBaseClass', () => {
       // Arrange
       sandbox.stub(secretStore.config, 'enableSet').value(true)
 
-      await expect(secretStore.setSecret('test', 'secret_value')).rejects.toEqual(
-        new UnhandledError(StatusCode.NotImplemented, 'set secret is not implemented in secret store'),
-      )
-
-      sandbox.assert.calledOnce(logger.stubs.error)
+      await expect(secretStore.setSecret('test', 'secret_value')).rejects.toEqual(new Error('Not implemented'))
     })
   })
 
@@ -80,11 +89,7 @@ describe('SecretStoreBaseClass', () => {
     it('should throw an UnhandledError if enableRemove is true but method is not implemented', async () => {
       sandbox.stub(secretStore.config, 'enableRemove').value(true)
 
-      await expect(secretStore.removeSecret('test')).rejects.toMatchObject(
-        new UnhandledError(StatusCode.NotImplemented, 'remove secret is not implemented in secret store'),
-      )
-
-      sandbox.assert.calledOnce(logger.stubs.error)
+      await expect(secretStore.removeSecret('test')).rejects.toMatchObject(new Error('Not implemented'))
     })
   })
 })

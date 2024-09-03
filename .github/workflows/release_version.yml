@@ -1,0 +1,100 @@
+name: Publish Packages to NPM
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'version'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  # Build job
+  publishversion:
+    environment: publish_version
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Not needed if lastUpdated is not enabled
+      # - uses: pnpm/action-setup@v2 # Uncomment this if you're using pnpm
+      # - uses: oven-sh/setup-bun@v1 # Uncomment this if you're using Bun
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm # or pnpm / yarn
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@purista'
+      - name: Install dependencies
+        run: |
+          rm package-lock.json # https://github.com/npm/cli/issues/4828
+          npm i
+      - name: Lint
+        run: |
+          npm run lint
+      - name: Build purista core
+        run: |
+          npm run build -w packages/core
+      - name: Build purista packages
+        run: |
+          npm run build
+      - name: Test
+        run: |
+          npm run test:unit
+      - name: Bump version
+        run: |
+          npm version ${{ inputs.version }} --no-git-tag-version
+          npm version ${{ inputs.version }} --no-git-tag-version --workspaces
+          git config --global user.name '${{ vars.CI_COMMIT_AUTHOR}}'
+          git config --global user.email 'sebastianwessel@users.noreply.github.com'
+          git config --global push.followTags true
+          ./scripts/commitVersion.sh
+          echo New version:
+          new_version=$(node -p -e "require('./package.json').version")
+          new_branch=purista_v$new_version
+          git checkout -b $new_branch
+          git push origin -u $new_branch
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+          echo "new_branch=$new_branch" >> $GITHUB_OUTPUT
+          npx git-cliff --tag $new_version > CHANGELOG.md
+        id: bump_version
+      - name: Dry run publish
+        run: |
+          npm publish --access public --dry-run --workspaces
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Commit version bump
+        uses: planetscale/ghcommit-action@v0.1.6
+        with:
+          commit_message: 'chore: bump ${{ inputs.version }} version to v${{ steps.bump_version.outputs.new_version }}'
+          repo: ${{ github.repository }}
+          branch: ${{ steps.bump_version.outputs.new_branch }}
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      - name: Add Tag
+        run: |
+          git restore .
+          git clean -f
+          git pull
+          git tag -a "v${{ steps.bump_version.outputs.new_version }}" -m "v${{ steps.bump_version.outputs.new_version }}"
+          git push origin --follow-tags
+      - name: create pull request
+        run: |
+          gh pr create -B master -H ${{ steps.bump_version.outputs.new_branch }} --title 'Merge ${{ steps.bump_version.outputs.new_branch }} into master' --body 'Created by Github action'
+          gh pr merge ${{ steps.bump_version.outputs.new_branch }} --rebase --admin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish to NPM
+        run: npm publish --access public --workspaces
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Create release
+        run: |
+          gh release create v${{ steps.bump_version.outputs.new_version }} -F CHANGELOG.md

@@ -1,0 +1,38 @@
+name: Pull request
+
+on:
+  pull_request:
+    branches: ['master']
+
+jobs:
+  # Build job
+  builddev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Not needed if lastUpdated is not enabled
+      # - uses: pnpm/action-setup@v2 # Uncomment this if you're using pnpm
+      # - uses: oven-sh/setup-bun@v1 # Uncomment this if you're using Bun
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm # or pnpm / yarn
+      - name: Install dependencies
+        run: |
+          # rm package-lock.json # https://github.com/npm/cli/issues/4828
+          npm ci
+      - name: Lint
+        run: |
+          npm run lint
+      - name: Build purista core
+        run: |
+          npm run build -w packages/core
+      - name: Build purista packages
+        run: |
+          npm run build
+      - name: Test
+        run: |
+          npm run test:unit

@@ -17,7 +17,7 @@ State stores are provided to services during instance creation.
 ```typescript
 const stateStore = new DaprStateStore({ stateStoreName: 'local-state-store' })
 
-const myService = myV1Service.getInstance(eventBridge, {
+const myService = await myV1Service.getInstance(eventBridge, {
     stateStore,
   })
 ```
@@ -53,6 +53,7 @@ You can simply extend the `StateStoreBaseClass` with type parameter of your cust
 
 ```typescript
 import { 
+    StateStore,
     StateStoreBaseClass,
     UnhandledError,
     StatusCode,
@@ -64,7 +65,7 @@ type CustomStoreConfig = {
   url: string
 }
 
-export class CustomStore extends StateStoreBaseClass<CustomStoreConfig> {
+export class CustomStore extends StateStoreBaseClass<CustomStoreConfig> implements StateStore {
 
   private client
 

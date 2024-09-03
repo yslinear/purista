@@ -1,10 +1,10 @@
-import type { Schema } from '@decs/typeschema'
 import type { Context, Span, SpanOptions } from '@opentelemetry/api'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { Resource } from '@opentelemetry/resources'
 import type { SpanProcessor } from '@opentelemetry/sdk-trace-node'
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
+import type { Schema } from '@typeschema/main'
 
 import { puristaVersion } from '../../../version.js'
 import type { ConfigStore } from '../../ConfigStore/index.js'
@@ -27,19 +27,19 @@ import { ServiceInfoValidator } from '../ServiceInfoValidator.impl.js'
 export class ServiceBaseClass extends GenericEventEmitter<ServiceEvents> {
   readonly info: ServiceInfoType
 
-  eventBridge: EventBridge
+  protected eventBridge: EventBridge
 
-  logger: Logger
+  protected logger: Logger
 
   spanProcessor: SpanProcessor | undefined
 
   traceProvider: NodeTracerProvider
 
-  secretStore: SecretStore
-  configStore: ConfigStore
-  stateStore: StateStore
+  protected secretStore: SecretStore
+  protected configStore: ConfigStore
+  protected stateStore: StateStore
 
-  configSchema: Schema | undefined
+  protected configSchema: Schema | undefined
 
   constructor(options: {
     logger: Logger
@@ -110,8 +110,8 @@ export class ServiceBaseClass extends GenericEventEmitter<ServiceEvents> {
    */
   getTracer(name?: string, version?: string) {
     return this.traceProvider.getTracer(
-      name || this.serviceInfo.serviceName,
-      version || this.serviceInfo.serviceVersion,
+      name ?? this.serviceInfo.serviceName,
+      version ?? this.serviceInfo.serviceVersion,
     )
   }
 
